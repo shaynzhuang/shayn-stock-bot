@@ -1,65 +1,85 @@
-import Image from "next/image";
+import { createClient } from '@/lib/supabase'
+import type { Holding, Market } from '@/types'
 
-export default function Home() {
+const MARKET_LABEL: Record<Market, string> = { CN: 'A股', HK: '港股', US: '美股' }
+const CURRENCY_SYMBOL: Record<string, string> = { CNY: '¥', HKD: 'HK$', USD: '$' }
+
+export const revalidate = 0
+
+export default async function HoldingsPage() {
+  const supabase = createClient()
+  const { data: holdings } = await supabase
+    .from('holdings')
+    .select('*')
+    .gt('quantity', 0)
+    .order('market')
+    .order('symbol')
+
+  const list = (holdings ?? []) as Holding[]
+
+  if (list.length === 0) {
+    return (
+      <div className="text-center text-gray-500 mt-16">
+        <p className="text-lg">暂无持仓</p>
+        <p className="text-sm mt-2">
+          通过 Telegram Bot 或
+          <a href="/trades/new" className="text-blue-600 ml-1">补录表单</a>
+          添加第一笔交易
+        </p>
+      </div>
+    )
+  }
+
+  const grouped = list.reduce<Record<Market, Holding[]>>((acc, h) => {
+    const m = h.market as Market
+    if (!acc[m]) acc[m] = []
+    acc[m].push(h)
+    return acc
+  }, {} as Record<Market, Holding[]>)
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div>
+      <h1 className="text-xl font-bold mb-6">持仓总览</h1>
+      {(Object.entries(grouped) as [Market, Holding[]][]).map(([market, items]) => {
+        const totalCost = items.reduce((sum, h) => sum + Number(h.total_cost), 0)
+        const sym = CURRENCY_SYMBOL[items[0].currency]
+        return (
+          <section key={market} className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold text-gray-700">{MARKET_LABEL[market]}</h2>
+              <span className="text-sm text-gray-500">
+                总成本 {sym}{totalCost.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b text-left text-gray-500">
+                  <th className="py-2 pr-4">名称</th>
+                  <th className="py-2 pr-4">代码</th>
+                  <th className="py-2 pr-4 text-right">持仓量</th>
+                  <th className="py-2 pr-4 text-right">平均成本</th>
+                  <th className="py-2 text-right">总成本</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map(h => (
+                  <tr key={h.symbol} className="border-b hover:bg-gray-50">
+                    <td className="py-2 pr-4 font-medium">{h.name}</td>
+                    <td className="py-2 pr-4 text-gray-500">{h.symbol}</td>
+                    <td className="py-2 pr-4 text-right">{Number(h.quantity).toLocaleString()}</td>
+                    <td className="py-2 pr-4 text-right">
+                      {sym}{Number(h.avg_cost).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-2 text-right">
+                      {sym}{Number(h.total_cost).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )
+      })}
     </div>
-  );
+  )
 }
