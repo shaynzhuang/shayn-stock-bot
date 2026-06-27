@@ -8,12 +8,12 @@ const VALID_CURRENCIES = ['CNY', 'HKD', 'USD']
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   const body = await req.json()
   const supabase = createClient()
 
-  // Validate fields if provided
   if (body.market !== undefined && !VALID_MARKETS.includes(body.market))
     return NextResponse.json({ error: 'Invalid market' }, { status: 400 })
   if (body.direction !== undefined && !VALID_DIRECTIONS.includes(body.direction))
@@ -37,7 +37,7 @@ export async function PUT(
 
   if (update.quantity !== undefined || update.price !== undefined) {
     const { data: existing } = await supabase
-      .from('trades').select('quantity,price').eq('id', params.id).single()
+      .from('trades').select('quantity,price').eq('id', id).single()
     const qty = Number(update.quantity ?? existing?.quantity)
     const price = Number(update.price ?? existing?.price)
     update.total_amount = qty * price
@@ -46,13 +46,12 @@ export async function PUT(
   const { data, error } = await supabase
     .from('trades')
     .update(update)
-    .eq('id', params.id)
+    .eq('id', id)
     .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Issue 5: re-sync holdings after trade update
   if (data?.symbol) {
     await recomputeHolding(supabase, data.symbol)
   }
@@ -62,10 +61,11 @@ export async function PUT(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   const supabase = createClient()
-  const { error } = await supabase.from('trades').delete().eq('id', params.id)
+  const { error } = await supabase.from('trades').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
