@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { CURRENCY_SYMBOL } from '@/lib/constants'
 
 async function sendMessage(chatId: number, text: string) {
-  await fetch(
+  const res = await fetch(
     `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
     {
       method: 'POST',
@@ -13,19 +13,42 @@ async function sendMessage(chatId: number, text: string) {
       body: JSON.stringify({ chat_id: chatId, text }),
     }
   )
+  if (!res.ok) {
+    const err = await res.text()
+    console.error('[sendMessage] failed:', res.status, err)
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
-  const message = body?.message
-  if (!message?.text || !message?.chat?.id) {
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch (e) {
+    console.error('[bot] json parse error:', e)
     return NextResponse.json({ ok: true })
   }
 
-  const chatId: number = message.chat.id
-  const text: string = message.text
+  const message = (body as Record<string, unknown>)?.message as Record<string, unknown> | undefined
+  if (!message?.text || !message?.chat) {
+    console.log('[bot] no message/text/chat, skipping')
+    return NextResponse.json({ ok: true })
+  }
 
-  const result = await parseTrade(text)
+  const chatId: number = (message.chat as Record<string, unknown>).id as number
+  const text: string = message.text as string
+
+  console.log('[bot] received:', text, 'chatId:', chatId)
+
+  let result
+  try {
+    result = await parseTrade(text)
+  } catch (e) {
+    console.error('[bot] parseTrade error:', e)
+    await sendMessage(chatId, '解析出错，请稍后重试')
+    return NextResponse.json({ ok: true })
+  }
+
+  console.log('[bot] parseResult:', JSON.stringify(result))
 
   if (!result.success) {
     if (result.error === 'ambiguous') {
@@ -40,7 +63,6 @@ export async function POST(req: NextRequest) {
 
   const trade = result.data
 
-  // Validation (Issue 7)
   const validMarkets = ['CN', 'HK', 'US']
   const validDirections = ['BUY', 'SELL']
   const validCurrencies = ['CNY', 'HKD', 'USD']
@@ -53,6 +75,7 @@ export async function POST(req: NextRequest) {
     !trade.symbol.trim() ||
     !trade.name.trim()
   ) {
+    console.error('[bot] validation failed:', trade)
     await sendMessage(chatId, '交易信息校验失败，请检查输入')
     return NextResponse.json({ ok: true })
   }
@@ -74,6 +97,7 @@ export async function POST(req: NextRequest) {
   })
 
   if (insertError) {
+    console.error('[bot] insert error:', insertError)
     await sendMessage(chatId, '记录失败，请稍后重试')
     return NextResponse.json({ ok: true })
   }
