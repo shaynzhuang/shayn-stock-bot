@@ -1,7 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import type { ParsedTrade } from '@/types'
 
-const anthropic = new Anthropic()
+const client = new OpenAI({
+  baseURL: 'https://api.deepseek.com',
+  apiKey: process.env.DEEPSEEK_API_KEY,
+})
 
 const SYSTEM_PROMPT = `你是一个股票交易记录解析助手。从用户的自然语言输入中提取交易信息，只返回 JSON，不要任何额外文字。
 
@@ -43,14 +46,16 @@ export async function parseTrade(
   text: string,
   today: string = new Date().toISOString().slice(0, 10)
 ): Promise<ParseResult> {
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+  const response = await client.chat.completions.create({
+    model: 'deepseek-chat',
     max_tokens: 256,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: `今天是 ${today}。\n用户输入：${text}` }],
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: `今天是 ${today}。\n用户输入：${text}` },
+    ],
   })
 
-  const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+  const raw = response.choices[0]?.message?.content ?? ''
 
   let obj: Record<string, unknown>
   try {

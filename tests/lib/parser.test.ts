@@ -2,20 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockCreate = vi.fn()
 
-vi.mock('@anthropic-ai/sdk', () => ({
+vi.mock('openai', () => ({
   default: vi.fn().mockImplementation(function () {
-    return { messages: { create: mockCreate } }
+    return { chat: { completions: { create: mockCreate } } }
   }),
 }))
 
 function makeResponse(obj: object) {
-  return { content: [{ type: 'text', text: JSON.stringify(obj) }] }
+  return { choices: [{ message: { content: JSON.stringify(obj) } }] }
 }
 
 describe('parseTrade', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    process.env.ANTHROPIC_API_KEY = 'test-key'
+    process.env.DEEPSEEK_API_KEY = 'test-key'
   })
 
   it('parses a valid BUY trade', async () => {
@@ -86,7 +86,7 @@ describe('parseTrade', () => {
       currency: 'USD', trade_date: '2026-06-25',
     })
     mockCreate.mockResolvedValue({
-      content: [{ type: 'text', text: '```json\n' + inner + '\n```' }],
+      choices: [{ message: { content: '```json\n' + inner + '\n```' } }],
     })
 
     const { parseTrade } = await import('@/lib/parser')
