@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase'
 import type { Holding, Market } from '@/types'
+import { CURRENCY_SYMBOL } from '@/lib/constants'
 
 const MARKET_LABEL: Record<Market, string> = { CN: 'A股', HK: '港股', US: '美股' }
-const CURRENCY_SYMBOL: Record<string, string> = { CNY: '¥', HKD: 'HK$', USD: '$' }
 
 export const revalidate = 0
 

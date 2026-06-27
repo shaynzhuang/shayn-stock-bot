@@ -14,11 +14,14 @@ vi.mock('@/lib/supabase', () => ({ createClient: mockCreateClient }))
 
 global.fetch = mockFetch as any
 
-function makeRequest(body: object) {
+function makeRequest(body: object, withSecret = true) {
   return new NextRequest('http://localhost/api/bot', {
     method: 'POST',
     body: JSON.stringify(body),
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(withSecret ? { 'x-telegram-bot-api-secret-token': 'test-secret' } : {}),
+    },
   })
 }
 
@@ -26,6 +29,7 @@ describe('POST /api/bot', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     process.env.TELEGRAM_BOT_TOKEN = 'test-token'
+    process.env.TELEGRAM_WEBHOOK_SECRET = 'test-secret'
     mockUpsertHolding.mockResolvedValue(undefined)
     mockInsert.mockResolvedValue({ error: null })
   })

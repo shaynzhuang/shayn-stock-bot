@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { ParsedTrade } from '@/types'
 
+const anthropic = new Anthropic()
+
 const SYSTEM_PROMPT = `你是一个股票交易记录解析助手。从用户的自然语言输入中提取交易信息，只返回 JSON，不要任何额外文字。
 
 市场规则：
@@ -41,9 +43,7 @@ export async function parseTrade(
   text: string,
   today: string = new Date().toISOString().slice(0, 10)
 ): Promise<ParseResult> {
-  const client = new Anthropic()
-
-  const response = await client.messages.create({
+  const response = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 256,
     system: SYSTEM_PROMPT,

@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { parseTrade } from '@/lib/parser'
 import { upsertHolding } from '@/lib/holdings'
 import { createClient } from '@/lib/supabase'
-
-const CURRENCY_SYMBOL: Record<string, string> = {
-  CNY: '¥', HKD: 'HK$', USD: '$',
-}
+import { CURRENCY_SYMBOL } from '@/lib/constants'
 
 async function sendMessage(chatId: number, text: string) {
   await fetch(
@@ -19,6 +16,12 @@ async function sendMessage(chatId: number, text: string) {
 }
 
 export async function POST(req: NextRequest) {
+  // Critical 1: validate Telegram webhook secret
+  const secret = req.headers.get('x-telegram-bot-api-secret-token')
+  if (!secret || secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
+    return NextResponse.json({ ok: true })
+  }
+
   const body = await req.json()
   const message = body?.message
   if (!message?.text || !message?.chat?.id) {
@@ -42,10 +45,28 @@ export async function POST(req: NextRequest) {
   }
 
   const trade = result.data
+
+  // Validation (Issue 7)
+  const validMarkets = ['CN', 'HK', 'US']
+  const validDirections = ['BUY', 'SELL']
+  const validCurrencies = ['CNY', 'HKD', 'USD']
+  if (
+    !validMarkets.includes(trade.market) ||
+    !validDirections.includes(trade.direction) ||
+    !validCurrencies.includes(trade.currency) ||
+    !Number.isInteger(trade.quantity) || trade.quantity <= 0 ||
+    trade.price <= 0 ||
+    !trade.symbol.trim() ||
+    !trade.name.trim()
+  ) {
+    await sendMessage(chatId, '交易信息校验失败，请检查输入')
+    return NextResponse.json({ ok: true })
+  }
+
   const total_amount = trade.price * trade.quantity
   const supabase = createClient()
 
-  await supabase.from('trades').insert({
+  const { error: insertError } = await supabase.from('trades').insert({
     symbol: trade.symbol,
     name: trade.name,
     market: trade.market,
@@ -57,6 +78,11 @@ export async function POST(req: NextRequest) {
     trade_date: trade.trade_date,
     note: text,
   })
+
+  if (insertError) {
+    await sendMessage(chatId, '记录失败，请稍后重试')
+    return NextResponse.json({ ok: true })
+  }
 
   await upsertHolding(supabase, trade)
 

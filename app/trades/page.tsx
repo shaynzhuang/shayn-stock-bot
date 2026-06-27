@@ -1,9 +1,9 @@
 import { createClient } from '@/lib/supabase'
 import type { Trade } from '@/types'
 import { deleteTrade } from './actions'
+import { CURRENCY_SYMBOL } from '@/lib/constants'
 
 const DIRECTION_LABEL: Record<string, string> = { BUY: '买入', SELL: '卖出' }
-const CURRENCY_SYMBOL: Record<string, string> = { CNY: '¥', HKD: 'HK$', USD: '$' }
 
 export const revalidate = 0
 
@@ -57,7 +57,7 @@ export default async function TradesPage() {
                 <td className="py-2 pr-3">{t.name}</td>
                 <td className="py-2 pr-3 text-gray-500">{t.symbol}</td>
                 <td className="py-2 pr-3 text-right">{Number(t.quantity).toLocaleString()}</td>
-                <td className="py-2 pr-3 text-right">{sym}{t.price}</td>
+                <td className="py-2 pr-3 text-right">{sym}{Number(t.price).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}</td>
                 <td className="py-2 pr-3 text-right">
                   {sym}{Number(t.total_amount).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
                 </td>
