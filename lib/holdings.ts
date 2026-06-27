@@ -15,10 +15,12 @@ export async function recomputeHolding(
     .from('trades')
     .select('direction,quantity,price,name,market,currency')
     .eq('symbol', symbol)
+    .order('trade_date', { ascending: true })
+    .order('created_at', { ascending: true })
 
   if (!trades || trades.length === 0) {
     // No trades remain – zero out the holding
-    await supabase.from('holdings').update({ quantity: 0, total_cost: 0 }).eq('symbol', symbol)
+    await supabase.from('holdings').update({ quantity: 0, total_cost: 0, avg_cost: 0 }).eq('symbol', symbol)
     return
   }
 

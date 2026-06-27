@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { upsertHolding } from '@/lib/holdings'
+import { upsertHolding, recomputeHolding } from '@/lib/holdings'
 
 const VALID_MARKETS = ['CN', 'HK', 'US'] as const
 const VALID_DIRECTIONS = ['BUY', 'SELL'] as const
@@ -76,12 +76,8 @@ export async function deleteTrade(id: string) {
   const { error: deleteError } = await supabase.from('trades').delete().eq('id', id)
   if (deleteError) throw new Error(`Failed to delete trade: ${deleteError.message}`)
 
-  // Reverse the trade's effect on holdings
-  const reversedTrade = {
-    ...trade,
-    direction: (trade.direction === 'BUY' ? 'SELL' : 'BUY') as 'BUY' | 'SELL',
-  }
-  await upsertHolding(supabase, reversedTrade)
+  // Recompute the holding from all remaining trades
+  await recomputeHolding(supabase, trade.symbol)
 
   revalidatePath('/')
   revalidatePath('/trades')
