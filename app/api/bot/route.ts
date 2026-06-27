@@ -16,12 +16,6 @@ async function sendMessage(chatId: number, text: string) {
 }
 
 export async function POST(req: NextRequest) {
-  // Critical 1: validate Telegram webhook secret
-  const secret = req.headers.get('x-telegram-bot-api-secret-token')
-  if (!secret || secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
-    return NextResponse.json({ ok: true })
-  }
-
   const body = await req.json()
   const message = body?.message
   if (!message?.text || !message?.chat?.id) {
